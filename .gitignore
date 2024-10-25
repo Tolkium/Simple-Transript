@@ -1,0 +1,37 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# IDE settings
+.vscode/
+.idea/
+
+# Local development settings
+.env
+*.log
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Ignore videos folder
+videos/
+videos/**
+
+# Ignore output folder
+output/
+output/**
+
+# Ignore transcriber settings file  
+Transcriber/transcriber_settings.json
