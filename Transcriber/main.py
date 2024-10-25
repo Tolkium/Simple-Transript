@@ -13,7 +13,7 @@ Features:
     - Configurable character filtering
 
 Author: [Marek Šípoš]
-Version: 1.0
+Version: 1.1
 """
 
 import tkinter as tk
@@ -58,6 +58,8 @@ class Settings:
             json.dump(self.current, f, indent=4)
 
 class TranscriberGUI:
+    PLACEHOLDER_TEXT = 'Characters separated by space'
+
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Video Transcriber")
@@ -77,82 +79,138 @@ class TranscriberGUI:
 
     def setup_ui(self):
         main_frame = ttk.Frame(self.root, padding="20")
-        main_frame.grid(row=0, column=0, sticky="nsew")
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Create grouped sections with borders
-        model_frame = ttk.LabelFrame(main_frame, text="Model Settings", padding="10")
-        model_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        frame_width = 400
         
+        # Model Settings
+        model_frame = ttk.LabelFrame(main_frame, text="Model Settings", padding="10", width=frame_width)
+        model_frame.pack(fill="x", pady=(0,5))
+        model_frame.pack_propagate(False)
+        
+        for label, var, values in [
+            ("Model:", self.model_var, MODELS),
+            ("Language:", self.language_var, LANGUAGES)
+        ]:
+            frame = ttk.Frame(model_frame)
+            frame.pack(fill="x", pady=2)
+            ttk.Label(frame, text=label, width=15).pack(side="left")
+            ttk.Combobox(frame, textvariable=var, values=values, width=30).pack(side="left")
+
+        # Text Settings
         text_frame = ttk.LabelFrame(main_frame, text="Text Settings", padding="10")
-        text_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        text_frame.pack(fill="x", pady=5)
         
-        file_frame = ttk.LabelFrame(main_frame, text="File Management", padding="10")
-        file_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
-
-        # Model Settings Group
-        ttk.Label(model_frame, text="Model:").grid(row=0, column=0, sticky="e", padx=5)
-        ttk.Combobox(model_frame, textvariable=self.model_var, values=MODELS, width=25).grid(row=0, column=1, sticky="w", padx=5)
-        
-        ttk.Label(model_frame, text="Language:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-        ttk.Combobox(model_frame, textvariable=self.language_var, values=LANGUAGES, width=25).grid(row=1, column=1, sticky="w", padx=5)
-        
-        # Text Settings Group
+        # Mode checkboxes - swapped order
         mode_frame = ttk.Frame(text_frame)
-        mode_frame.grid(row=0, column=0, columnspan=2, pady=5)
-        
-        ttk.Checkbutton(mode_frame, text="Word-level", variable=self.word_level_var, command=self.toggle_char_limit).pack(side=tk.LEFT, padx=10)
-        ttk.Checkbutton(mode_frame, text="Sentence-level", variable=self.sentence_level_var).pack(side=tk.LEFT, padx=10)
-        
-        ttk.Label(text_frame, text="Characters to remove:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-        ttk.Entry(text_frame, textvariable=self.chars_to_remove, width=25).grid(row=1, column=1, sticky="w", padx=5)
-        
-        self.char_frame = ttk.Frame(text_frame)
-        self.char_frame.grid(row=2, column=0, columnspan=2, pady=5)
-        ttk.Label(self.char_frame, text="Characters per line:").pack(side=tk.LEFT, padx=5)
-        self.char_spinbox = ttk.Spinbox(self.char_frame, from_=1, to=100, textvariable=self.char_limit, width=10)
-        self.char_spinbox.pack(side=tk.LEFT, padx=5)
+        mode_frame.pack(fill="x")
+        ttk.Checkbutton(mode_frame, text="Sentence-level", 
+                        variable=self.sentence_level_var).pack(side="left", padx=5)
+        ttk.Checkbutton(mode_frame, text="Word-level", 
+                        variable=self.word_level_var, 
+                        command=self.toggle_char_limit).pack(side="left", padx=5)
 
-        # File Management Group
+        # Characters to remove
+        chars_frame = ttk.Frame(text_frame)
+        chars_frame.pack(fill="x", pady=5)
+        ttk.Label(chars_frame, text="Characters to remove:", 
+                width=20).pack(side="left", anchor="w")
+        chars_entry = ttk.Entry(chars_frame, textvariable=self.chars_to_remove, 
+                width=30)
+        chars_entry.pack(side="left", padx=5)
+        
+        # Only set placeholder if there's no saved value
+        if not self.chars_to_remove.get():
+            chars_entry.insert(0, self.PLACEHOLDER_TEXT)
+            chars_entry.configure(foreground='gray')
+        
+        def on_focus_in(event):
+            if chars_entry.get() == self.PLACEHOLDER_TEXT:
+                chars_entry.delete(0, 'end')
+                chars_entry.configure(foreground='black')
+        
+        def on_focus_out(event):
+            if not chars_entry.get():
+                chars_entry.insert(0, self.PLACEHOLDER_TEXT)
+                chars_entry.configure(foreground='gray')
+        
+        chars_entry.bind('<FocusIn>', on_focus_in)
+        chars_entry.bind('<FocusOut>', on_focus_out)
+
+        # Characters per line
+        self.char_frame = ttk.Frame(text_frame)
+        self.char_frame.pack(fill="x", pady=5)
+        ttk.Label(self.char_frame, text="Characters per line:", 
+                width=20).pack(side="left", anchor="w")
+        self.char_spinbox = ttk.Spinbox(self.char_frame, from_=1, to=100,
+                                    textvariable=self.char_limit, 
+                                    width=10)
+        self.char_spinbox.pack(side="left", padx=5)
+
+        # File Management
+        file_frame = ttk.LabelFrame(main_frame, text="File Management", padding="10", width=frame_width)
+        file_frame.pack(fill="x", pady=5)
+        
+        # Define truncate_path function first
+        def truncate_path(path, length=40):
+            if len(path) <= length:
+                return path
+            return "..." + path[-(length-3):]
+        
+        # Left side - buttons
         button_frame = ttk.Frame(file_frame)
-        button_frame.grid(row=0, column=0, columnspan=2, pady=5)
+        button_frame.pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Select Files", 
+                    command=self.select_files, 
+                    width=15).pack(pady=2)
+        ttk.Button(button_frame, text="Output Folder", 
+                    command=self.select_output, 
+                    width=15).pack(pady=2)
+
+        # Right side - labels
+        label_frame = ttk.Frame(file_frame)
+        label_frame.pack(side="left", fill="x", expand=True, padx=5)
         
-        ttk.Button(button_frame, text="Select Files", command=self.select_files, width=15).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Output Folder", command=self.select_output, width=15).pack(side=tk.LEFT, padx=5)
-        
-        self.files_label = ttk.Label(file_frame, text="No files selected")
-        self.files_label.grid(row=1, column=0, columnspan=2, pady=5)
-        
-        self.output_label = ttk.Label(file_frame, text=self.settings.current["output_directory"] or "No folder selected")
-        self.output_label.grid(row=2, column=0, columnspan=2, pady=5)
+        self.files_label = ttk.Label(label_frame, text="No files selected")
+        self.files_label.pack(fill="x", pady=2)
+        self.output_label = ttk.Label(label_frame, 
+            text=truncate_path(self.settings.current["output_directory"] or "No folder selected"))
+        self.output_label.pack(fill="x", pady=2)
 
         # Bottom Section
-        ttk.Button(main_frame, text="Transcribe", command=self.transcribe, style="Accent.TButton").grid(row=3, column=0, columnspan=2, pady=15)
+        bottom_frame = ttk.Frame(main_frame)
+        bottom_frame.pack(fill="x", pady=10)
         
-        self.progress = ttk.Progressbar(main_frame, length=300, mode='determinate')
-        self.progress.grid(row=4, column=0, columnspan=2, pady=5)
+        ttk.Button(bottom_frame, text="Transcribe", command=self.transcribe, 
+                style="Accent.TButton", width=20).pack(pady=5)
+        
+        self.progress = ttk.Progressbar(bottom_frame, length=300, mode='determinate')
+        self.progress.pack(pady=5)
         
         self.error_var = tk.StringVar()
-        error_label = ttk.Label(main_frame, textvariable=self.error_var, wraplength=300)
-        error_label.grid(row=5, column=0, columnspan=2, pady=5)
+        error_label = ttk.Label(bottom_frame, textvariable=self.error_var, 
+                            wraplength=300)
+        error_label.pack(pady=5)
         error_label.bind('<Button-1>', self.copy_error)
 
-        # Make layout expandable
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
-        
         # Initial states
         self.toggle_char_limit()
 
     def toggle_char_limit(self):
         if self.word_level_var.get():
             self.char_spinbox.configure(state='normal')
-            self.char_frame.grid()
+            self.char_frame.pack(fill="x", pady=5)  # Added fill and pady
         else:
             self.char_spinbox.configure(state='disabled')
-            self.char_frame.grid_remove()
+            self.char_frame.pack_forget()
+        
+        # Force layout update
+        self.root.update_idletasks()
 
     def save_settings(self):
+        # When saving, only save the actual value if it's not the placeholder
+        chars_to_remove = '' if self.chars_to_remove.get() == self.PLACEHOLDER_TEXT else self.chars_to_remove.get()
+        
         self.settings.current.update({
             "input_directory": os.path.dirname(self.files[0]) if self.files else "",
             "output_directory": self.output_dir,
@@ -161,7 +219,7 @@ class TranscriberGUI:
             "word_level": self.word_level_var.get(),
             "sentence_level": self.sentence_level_var.get(),
             "char_limit": self.char_limit.get(),
-            "chars_to_remove": self.chars_to_remove.get()
+            "chars_to_remove": chars_to_remove  # Save empty string if it's placeholder
         })
         self.settings.save()
 
@@ -218,7 +276,7 @@ class TranscriberGUI:
                         language=self.language_var.get().lower()
                     )
                     word_srt_path = self.get_unique_filename(
-                        os.path.join(self.output_dir, f"{base_filename}_full.srt")
+                        os.path.join(self.output_dir, f"{base_filename}_cropped.srt")
                     )
                     self.create_word_srt(result, word_srt_path)
 
@@ -229,7 +287,7 @@ class TranscriberGUI:
                         language=self.language_var.get().lower()
                     )
                     sent_srt_path = self.get_unique_filename(
-                        os.path.join(self.output_dir, f"{base_filename}_cropped.srt")
+                        os.path.join(self.output_dir, f"{base_filename}_full.srt")
                     )
                     self.create_sentence_srt(result, sent_srt_path)
 
@@ -326,7 +384,7 @@ class TranscriberGUI:
     def run(self):
         # Set initial size and position
         window_width = 500
-        window_height = 600
+        window_height = 400
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         x = (screen_width - window_width) // 2
